@@ -1,0 +1,80 @@
+diff -Naur mosquitto-1.4.11.orig/config.mk mosquitto-1.4.11/config.mk
+--- mosquitto-1.4.11.orig/config.mk	2017-02-20 22:06:57.000000000 +0000
++++ mosquitto-1.4.11/config.mk	2017-03-12 04:37:27.135043395 +0000
+@@ -58,11 +58,11 @@
+ WITH_SYS_TREE:=yes
+ 
+ # Build with SRV lookup support.
+-WITH_SRV:=yes
++WITH_SRV:=no
+ 
+ # Build using libuuid for clientid generation (Linux only - please report if
+ # supported on your platform).
+-WITH_UUID:=yes
++WITH_UUID:=no
+ 
+ # Build with websockets support on the broker.
+ WITH_WEBSOCKETS:=no
+@@ -111,12 +111,12 @@
+ 	CFLAGS?=-Wall -ggdb -O2
+ endif
+ 
+-LIB_CFLAGS:=${CFLAGS} ${CPPFLAGS} -I. -I.. -I../lib
++LIB_CFLAGS:=${CFLAGS} ${CPPFLAGS} -I. -I.. -I../lib -I/opt/openssl-1.1.0e/include
+ LIB_CXXFLAGS:=$(LIB_CFLAGS) ${CPPFLAGS}
+-LIB_LDFLAGS:=${LDFLAGS}
++LIB_LDFLAGS:=${LDFLAGS} -L/opt/openssl-1.1.0e/lib
+ 
+ BROKER_CFLAGS:=${LIB_CFLAGS} ${CPPFLAGS} -DVERSION="\"${VERSION}\"" -DTIMESTAMP="\"${TIMESTAMP}\"" -DWITH_BROKER
+-CLIENT_CFLAGS:=${CFLAGS} ${CPPFLAGS} -I../lib -DVERSION="\"${VERSION}\""
++CLIENT_CFLAGS:=${CFLAGS} ${CPPFLAGS} -I../lib -DVERSION="\"${VERSION}\"" 
+ 
+ ifneq ($(or $(findstring $(UNAME),FreeBSD), $(findstring $(UNAME),OpenBSD)),)
+ 	BROKER_LIBS:=-lm
+@@ -127,11 +127,11 @@
+ PASSWD_LIBS:=
+ 
+ ifeq ($(UNAME),Linux)
+-	BROKER_LIBS:=$(BROKER_LIBS) -lrt -Wl,--dynamic-list=linker.syms
++	BROKER_LIBS:=$(BROKER_LIBS) -lrt -L/opt/openssl-1.1.0e/lib -Wl,-rpath-link /opt/openssl-1.1.0e/lib -Wl,--dynamic-list=linker.syms
+ 	LIB_LIBS:=$(LIB_LIBS) -lrt
+ endif
+ 
+-CLIENT_LDFLAGS:=$(LDFLAGS) -L../lib ../lib/libmosquitto.so.${SOVERSION}
++CLIENT_LDFLAGS:=$(LDFLAGS) -L../lib -Wl,-rpath-link /opt/openssl-1.1.0e/lib ../lib/libmosquitto.so.${SOVERSION}
+ 
+ ifeq ($(UNAME),SunOS)
+ 	ifeq ($(CC),cc)
+@@ -173,7 +173,7 @@
+ 	LIB_LIBS:=$(LIB_LIBS) -lssl -lcrypto
+ 	BROKER_CFLAGS:=$(BROKER_CFLAGS) -DWITH_TLS
+ 	LIB_CFLAGS:=$(LIB_CFLAGS) -DWITH_TLS
+-	PASSWD_LIBS:=-lcrypto
++	PASSWD_LIBS:=-lcrypto -L/opt/openssl-1.1.0e/lib
+ 	CLIENT_CFLAGS:=$(CLIENT_CFLAGS) -DWITH_TLS
+ 
+ 	ifeq ($(WITH_TLS_PSK),yes)
+@@ -253,7 +253,10 @@
+ endif
+ 
+ INSTALL?=install
+-prefix=/usr/local
++prefix?=/opt/mosquitto-1.4.11
+ mandir=${prefix}/share/man
+ localedir=${prefix}/share/locale
+ STRIP?=strip
++
++CROSS_COMPILE?=arm-openwink-linux-gnueabi-
++
+diff -Naur mosquitto-1.4.11.orig/src/Makefile mosquitto-1.4.11/src/Makefile
+--- mosquitto-1.4.11.orig/src/Makefile	2017-02-20 22:06:57.000000000 +0000
++++ mosquitto-1.4.11/src/Makefile	2017-03-12 04:42:44.915080704 +0000
+@@ -99,7 +99,7 @@
+ 	${CROSS_COMPILE}${CC} $^ -o $@ ${LDFLAGS} $(PASSWD_LIBS)
+ 
+ mosquitto_passwd.o : mosquitto_passwd.c
+-	${CROSS_COMPILE}${CC} $(CFLAGS) ${CPPFLAGS} -c $< -o $@
++	${CROSS_COMPILE}${CC} $(CFLAGS) ${CPPFLAGS} ${BROKER_CFLAGS} -c $< -o $@
+ 
+ install : all
+ 	$(INSTALL) -d ${DESTDIR}$(prefix)/sbin
